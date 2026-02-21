@@ -49,6 +49,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webflux")  // WebClient
     implementation("com.google.firebase:firebase-admin:9.4.1")              // FCM
 
+    // ★ MacOS용 Netty DNS 네이티브 라이브러리 (Apple Silicon 기준)
+    runtimeOnly("io.netty:netty-resolver-dns-native-macos:4.1.118.Final:osx-aarch_64")
+
     // ── API 문서화 ──
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4")
 
@@ -58,8 +61,8 @@ dependencies {
     // ── 테스트 ──
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
-    testImplementation("io.mockk:mockk:1.13.14")               // Kotlin 친화 Mock
-    testImplementation("com.h2database:h2")                     // 테스트용 인메모리 DB
+    testImplementation("io.mockk:mockk:1.13.14")
+    testImplementation("com.h2database:h2")
 }
 
 kotlin {

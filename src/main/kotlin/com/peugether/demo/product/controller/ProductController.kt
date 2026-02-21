@@ -5,6 +5,7 @@ import com.peugether.demo.product.service.ProductService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
@@ -15,5 +16,12 @@ class ProductController(
     @GetMapping
     fun getProducts(): ResponseEntity<ProductListResponse> {
         return ResponseEntity.ok(productService.getProducts())
+    }
+
+    @GetMapping("/search")
+    fun searchProducts(
+        @RequestParam keyword: String,
+    ): ResponseEntity<ProductListResponse> {
+        return ResponseEntity.ok(productService.searchProducts(keyword))
     }
 }

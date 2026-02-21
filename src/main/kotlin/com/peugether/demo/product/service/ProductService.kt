@@ -24,4 +24,20 @@ class ProductService(
             },
         )
     }
+
+    @Transactional(readOnly = true)
+    fun searchProducts(keyword: String): ProductListResponse {
+        val products = productRepository.findByNameContainingIgnoreCaseAndIsAvailableTrue(keyword)
+        return ProductListResponse(
+            products = products.map { product ->
+                ProductListResponse.ProductItem(
+                    id = product.id,
+                    name = product.name,
+                    price = product.price,
+                    imageUrl = product.imageUrl,
+                    productUrl = product.productUrl,
+                )
+            },
+        )
+    }
 }

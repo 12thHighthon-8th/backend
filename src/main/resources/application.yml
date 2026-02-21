@@ -47,6 +47,7 @@ fee:
 
 app:
   invite-link-base-url: ${INVITE_LINK_BASE_URL:https://peugether.co/invent}
+  recipient-link-base-url: ${RECIPIENT_LINK_BASE_URL:https://peugether.co/recipient}
   frontend-url: ${FRONTEND_URL:http://172.16.20.81:5173}
 
 springdoc:

@@ -45,6 +45,10 @@ fee:
   default-rate: ${FEE_DEFAULT_RATE:0.05}
   default-fixed: ${FEE_DEFAULT_FIXED:}
 
+app:
+  invite-link-base-url: ${INVITE_LINK_BASE_URL:https://peugether.co/join}
+  frontend-url: ${FRONTEND_URL:http://172.16.20.81:5173}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

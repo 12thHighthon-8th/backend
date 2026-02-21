@@ -33,6 +33,7 @@ class SecurityConfig(
                 auth
                     // 인증 불필요 엔드포인트
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/kakao").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/auth/kakao/callback").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
                     // 수취인 비회원 접근
                     .requestMatchers(HttpMethod.GET, "/api/v1/recipient/**").permitAll()

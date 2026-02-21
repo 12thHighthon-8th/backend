@@ -21,6 +21,10 @@ enum class ErrorCode(val status: Int, val code: String, val message: String) {
     NOT_GROUP_LEADER(403, "GROUP_002", "그룹장만 수행할 수 있습니다"),
     GROUP_ALREADY_FUNDED(400, "GROUP_003", "이미 모금이 완료된 그룹입니다"),
     INVALID_GROUP_STATUS(400, "GROUP_004", "현재 그룹 상태에서 수행할 수 없는 작업입니다"),
+    NOT_GROUP_MEMBER(403, "GROUP_005", "그룹 멤버만 접근할 수 있습니다"),
+
+    // 상품
+    PRODUCT_NOT_FOUND(404, "PRODUCT_001", "상품을 찾을 수 없습니다"),
 
     // 모금
     FUNDING_AMOUNT_EXCEEDED(400, "FUND_001", "모금 목표 금액을 초과할 수 없습니다"),

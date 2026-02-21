@@ -7,21 +7,34 @@ import com.peugether.demo.group.dto.ChangeProductResponse
 import com.peugether.demo.group.dto.CreateGroupRequest
 import com.peugether.demo.group.dto.CreateGroupResponse
 import com.peugether.demo.group.dto.GroupDetailResponse
+import com.peugether.demo.group.dto.GroupListResponse
 import com.peugether.demo.group.dto.GroupPreviewResponse
+import com.peugether.demo.group.dto.JoinGroupRequest
 import com.peugether.demo.group.dto.JoinGroupResponse
 import com.peugether.demo.group.service.GroupService
+import com.peugether.demo.recipient.dto.SetRecipientRequest
+import com.peugether.demo.recipient.dto.SetRecipientResponse
+import com.peugether.demo.recipient.service.RecipientService
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/groups")
 class GroupController(
     private val groupService: GroupService,
+    private val recipientService: RecipientService,
 ) {
+    @GetMapping
+    fun getMyGroups(
+        @AuthenticationPrincipal userId: Long?,
+    ): ResponseEntity<GroupListResponse> {
+        val resolvedUserId = userId ?: throw CustomException(ErrorCode.UNAUTHORIZED)
+        return ResponseEntity.ok(groupService.getMyGroups(resolvedUserId))
+    }
+
     @PostMapping
     fun createGroup(
         @AuthenticationPrincipal userId: Long?,
@@ -63,33 +76,24 @@ class GroupController(
         return ResponseEntity.ok(response)
     }
 
-    @GetMapping("/invent/link/{linkToken}")
-    fun getGroupByLinkToken(
+    @PostMapping("/invent")
+    fun joinGroup(
         @AuthenticationPrincipal userId: Long?,
-        @PathVariable linkToken: UUID,
-    ): ResponseEntity<GroupPreviewResponse> {
-        val resolvedUserId = userId ?: throw CustomException(ErrorCode.UNAUTHORIZED)
-        val response = groupService.getGroupPreviewByLinkToken(linkToken, resolvedUserId)
-        return ResponseEntity.ok(response)
-    }
-
-    @PostMapping("/invent/link/{linkToken}")
-    fun joinGroupByLinkToken(
-        @AuthenticationPrincipal userId: Long?,
-        @PathVariable linkToken: UUID,
+        @RequestBody request: JoinGroupRequest,
     ): ResponseEntity<JoinGroupResponse> {
         val resolvedUserId = userId ?: throw CustomException(ErrorCode.UNAUTHORIZED)
-        val response = groupService.joinGroupByLinkToken(linkToken, resolvedUserId)
+        val response = groupService.joinGroup(resolvedUserId, request)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
     }
 
-    @PostMapping("/{groupId}/invent")
-    fun joinGroup(
+    @PostMapping("/{groupId}/recipient")
+    fun setRecipient(
         @AuthenticationPrincipal userId: Long?,
         @PathVariable groupId: Long,
-    ): ResponseEntity<JoinGroupResponse> {
+        @Valid @RequestBody request: SetRecipientRequest,
+    ): ResponseEntity<SetRecipientResponse> {
         val resolvedUserId = userId ?: throw CustomException(ErrorCode.UNAUTHORIZED)
-        val response = groupService.joinGroup(groupId, resolvedUserId)
+        val response = recipientService.setRecipient(groupId, resolvedUserId, request)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
     }
 }

@@ -40,6 +40,9 @@ enum class ErrorCode(val status: Int, val code: String, val message: String) {
     // 수취인
     RECIPIENT_LINK_EXPIRED(400, "RCPT_001", "링크가 만료되었습니다"),
     RECIPIENT_ALREADY_RESPONDED(400, "RCPT_002", "이미 응답한 요청입니다"),
+    RECIPIENT_NOT_FOUND(404, "RCPT_003", "수취인 정보를 찾을 수 없습니다"),
+    RECIPIENT_ALREADY_EXISTS(400, "RCPT_004", "이미 수취인 정보가 등록된 그룹입니다"),
+    GROUP_NOT_FUNDED(400, "GROUP_010", "모금이 완료된 그룹에서만 수취인을 등록할 수 있습니다"),
 
     // 결제
     PAYMENT_CONFIRM_FAILED(500, "PAY_001", "결제 승인에 실패했습니다"),

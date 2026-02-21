@@ -14,9 +14,11 @@ import com.peugether.demo.domain.group.GroupStatus
 import com.peugether.demo.group.dto.CreateGroupRequest
 import com.peugether.demo.group.dto.CreateGroupResponse
 import com.peugether.demo.group.dto.GroupDetailResponse
+import com.peugether.demo.group.dto.GroupListResponse
 import com.peugether.demo.group.dto.ChangeProductRequest
 import com.peugether.demo.group.dto.ChangeProductResponse
 import com.peugether.demo.group.dto.GroupPreviewResponse
+import com.peugether.demo.group.dto.JoinGroupRequest
 import com.peugether.demo.group.dto.JoinGroupResponse
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -219,17 +221,10 @@ class GroupService(
         return buildGroupPreview(group, userId)
     }
 
-    @Transactional(readOnly = true)
-    fun getGroupPreviewByLinkToken(linkToken: UUID, userId: Long): GroupPreviewResponse {
-        val group = groupRepository.findByInviteLinkToken(linkToken)
-            ?: throw CustomException(ErrorCode.INVITE_LINK_NOT_FOUND)
-        return buildGroupPreview(group, userId)
-    }
-
     @Transactional
-    fun joinGroupByLinkToken(linkToken: UUID, userId: Long): JoinGroupResponse {
-        // 1. 링크 토큰으로 그룹 조회
-        val group = groupRepository.findByInviteLinkToken(linkToken)
+    fun joinGroup(userId: Long, request: JoinGroupRequest): JoinGroupResponse {
+        // 1. 초대 링크 토큰으로 그룹 조회
+        val group = groupRepository.findByInviteLinkToken(request.inviteLinkToken)
             ?: throw CustomException(ErrorCode.INVITE_LINK_NOT_FOUND)
 
         // 2. 그룹 상태 확인 (CREATED 또는 FUNDING 상태만 참여 가능)
@@ -263,42 +258,64 @@ class GroupService(
         )
     }
 
-    @Transactional
-    fun joinGroup(groupId: Long, userId: Long): JoinGroupResponse {
-        // 1. 그룹 조회
-        val group = groupRepository.findById(groupId).orElseThrow {
-            CustomException(ErrorCode.GROUP_NOT_FOUND)
-        }
+    @Transactional(readOnly = true)
+    fun getMyGroups(userId: Long): GroupListResponse {
+        val memberships = groupMemberRepository.findAllByUserId(userId)
+        if (memberships.isEmpty()) return GroupListResponse(emptyList())
 
-        // 2. 그룹 상태 확인 (CREATED 또는 FUNDING 상태만 참여 가능)
-        if (group.status != GroupStatus.CREATED && group.status != GroupStatus.FUNDING) {
-            throw CustomException(ErrorCode.GROUP_JOIN_NOT_ALLOWED)
-        }
+        val groupIds = memberships.map { it.groupId }
+        val groups = groupRepository.findAllByIdIn(groupIds).associateBy { it.id }
+        val membershipMap = memberships.associateBy { it.groupId }
 
-        // 3. 이미 멤버인지 확인
-        val existingMember = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
-        if (existingMember != null) {
-            throw CustomException(ErrorCode.ALREADY_GROUP_MEMBER)
-        }
+        val productIds = groups.values.mapNotNull { it.productId }.toSet()
+        val products = productRepository.findAllById(productIds).associateBy { it.id }
 
-        // 4. 사용자 존재 확인
-        userRepository.findByIdAndDeletedAtIsNull(userId)
-            ?: throw CustomException(ErrorCode.USER_NOT_FOUND)
+        val leaderIds = groups.values.map { it.leaderId }.toSet()
+        val leaders = userRepository.findAllById(leaderIds).associateBy { it.id }
 
-        // 5. 멤버로 추가
-        val member = groupMemberRepository.save(
-            GroupMember(
-                groupId = groupId,
-                userId = userId,
-                role = GroupMemberRole.MEMBER,
-            ),
-        )
+        val allMembers = groupMemberRepository.findAllByGroupIdIn(groupIds)
+        val memberCountMap = allMembers.groupBy { it.groupId }.mapValues { it.value.size }
 
-        return JoinGroupResponse(
-            groupId = groupId,
-            userId = userId,
-            role = member.role.name,
-            message = "그룹에 참여했습니다. 참여 금액을 설정해주세요.",
+        return GroupListResponse(
+            groups = groupIds.mapNotNull { groupId ->
+                val group = groups[groupId] ?: return@mapNotNull null
+                val membership = membershipMap[groupId] ?: return@mapNotNull null
+                val product = group.productId?.let { products[it] }
+                val leader = leaders[group.leaderId] ?: return@mapNotNull null
+                val memberCount = memberCountMap[groupId] ?: 0
+                val fundingPercentage = if (group.totalAmount > 0) {
+                    (group.fundedAmount.toDouble() / group.totalAmount.toDouble() * 100).let {
+                        Math.round(it * 10) / 10.0
+                    }
+                } else 0.0
+
+                GroupListResponse.GroupItem(
+                    id = group.id,
+                    name = group.name,
+                    status = group.status.name,
+                    myRole = membership.role.name,
+                    product = product?.let {
+                        GroupListResponse.GroupItem.ProductInfo(
+                            id = it.id,
+                            name = it.name,
+                            price = it.price,
+                            imageUrl = it.imageUrl,
+                        )
+                    },
+                    leader = GroupListResponse.GroupItem.LeaderInfo(
+                        id = leader.id,
+                        nickname = leader.nickname,
+                    ),
+                    memberCount = memberCount,
+                    targetAmount = group.targetAmount,
+                    feeAmount = group.feeAmount,
+                    totalAmount = group.totalAmount,
+                    fundedAmount = group.fundedAmount,
+                    fundingPercentage = fundingPercentage,
+                    deadline = group.deadline,
+                    createdAt = group.createdAt,
+                )
+            },
         )
     }
 

@@ -41,7 +41,7 @@ class Group(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    var status: GroupStatus = GroupStatus.CREATED,
+    var status: GroupStatus = GroupStatus.FUNDING,
 
     @Column(name = "deadline", columnDefinition = "TIMESTAMPTZ")
     var deadline: OffsetDateTime? = null,

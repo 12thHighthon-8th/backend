@@ -22,6 +22,10 @@ enum class ErrorCode(val status: Int, val code: String, val message: String) {
     GROUP_ALREADY_FUNDED(400, "GROUP_003", "이미 모금이 완료된 그룹입니다"),
     INVALID_GROUP_STATUS(400, "GROUP_004", "현재 그룹 상태에서 수행할 수 없는 작업입니다"),
     NOT_GROUP_MEMBER(403, "GROUP_005", "그룹 멤버만 접근할 수 있습니다"),
+    ALREADY_GROUP_MEMBER(400, "GROUP_006", "이미 그룹에 참여되어 있습니다"),
+    GROUP_JOIN_NOT_ALLOWED(400, "GROUP_007", "현재 그룹 상태에서는 참여할 수 없습니다"),
+    INVITE_CODE_NOT_FOUND(404, "GROUP_008", "유효하지 않은 초대 코드입니다"),
+    INVITE_LINK_NOT_FOUND(404, "GROUP_009", "유효하지 않은 초대 링크입니다"),
 
     // 상품
     PRODUCT_NOT_FOUND(404, "PRODUCT_001", "상품을 찾을 수 없습니다"),

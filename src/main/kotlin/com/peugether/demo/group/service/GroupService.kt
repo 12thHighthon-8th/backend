@@ -10,9 +10,14 @@ import com.peugether.demo.domain.group.member.GroupMemberRole
 import com.peugether.demo.domain.product.ProductRepository
 import com.peugether.demo.domain.user.UserRepository
 import com.peugether.demo.fee.service.FeeCalculationService
+import com.peugether.demo.domain.group.GroupStatus
 import com.peugether.demo.group.dto.CreateGroupRequest
 import com.peugether.demo.group.dto.CreateGroupResponse
 import com.peugether.demo.group.dto.GroupDetailResponse
+import com.peugether.demo.group.dto.ChangeProductRequest
+import com.peugether.demo.group.dto.ChangeProductResponse
+import com.peugether.demo.group.dto.GroupPreviewResponse
+import com.peugether.demo.group.dto.JoinGroupResponse
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -158,6 +163,181 @@ class GroupService(
             fundedAmount = group.fundedAmount,
             deadline = group.deadline,
             createdAt = group.createdAt,
+        )
+    }
+
+    @Transactional
+    fun changeProduct(groupId: Long, userId: Long, request: ChangeProductRequest): ChangeProductResponse {
+        // 1. 그룹 조회
+        val group = groupRepository.findById(groupId).orElseThrow {
+            CustomException(ErrorCode.GROUP_NOT_FOUND)
+        }
+
+        // 2. 그룹장 확인
+        if (group.leaderId != userId) {
+            throw CustomException(ErrorCode.NOT_GROUP_LEADER)
+        }
+
+        // 3. FUNDING 이전(CREATED, FUNDING) 상태에서만 변경 가능
+        if (group.status != GroupStatus.CREATED && group.status != GroupStatus.FUNDING) {
+            throw CustomException(ErrorCode.INVALID_GROUP_STATUS)
+        }
+
+        // 4. 새 상품 조회 (판매 가능한 상품만)
+        val product = productRepository.findByIdAndIsAvailableTrue(request.productId)
+            ?: throw CustomException(ErrorCode.PRODUCT_NOT_FOUND)
+
+        // 5. 금액 재계산
+        val targetAmount = feeCalculationService.roundUpTo100(product.price)
+        val feeAmount = feeCalculationService.calculateFee(product.price)
+        val totalAmount = targetAmount + feeAmount
+
+        // 6. 그룹 업데이트
+        group.productId = product.id
+        group.targetAmount = targetAmount
+        group.feeAmount = feeAmount
+        group.totalAmount = totalAmount
+
+        return ChangeProductResponse(
+            groupId = group.id,
+            product = ChangeProductResponse.ProductInfo(
+                id = product.id,
+                name = product.name,
+                price = product.price,
+                imageUrl = product.imageUrl,
+            ),
+            targetAmount = targetAmount,
+            feeAmount = feeAmount,
+            totalAmount = totalAmount,
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun getGroupPreviewByInviteCode(inviteCode: String, userId: Long): GroupPreviewResponse {
+        val group = groupRepository.findByInviteCode(inviteCode)
+            ?: throw CustomException(ErrorCode.INVITE_CODE_NOT_FOUND)
+        return buildGroupPreview(group, userId)
+    }
+
+    @Transactional(readOnly = true)
+    fun getGroupPreviewByLinkToken(linkToken: UUID, userId: Long): GroupPreviewResponse {
+        val group = groupRepository.findByInviteLinkToken(linkToken)
+            ?: throw CustomException(ErrorCode.INVITE_LINK_NOT_FOUND)
+        return buildGroupPreview(group, userId)
+    }
+
+    @Transactional
+    fun joinGroupByLinkToken(linkToken: UUID, userId: Long): JoinGroupResponse {
+        // 1. 링크 토큰으로 그룹 조회
+        val group = groupRepository.findByInviteLinkToken(linkToken)
+            ?: throw CustomException(ErrorCode.INVITE_LINK_NOT_FOUND)
+
+        // 2. 그룹 상태 확인 (CREATED 또는 FUNDING 상태만 참여 가능)
+        if (group.status != GroupStatus.CREATED && group.status != GroupStatus.FUNDING) {
+            throw CustomException(ErrorCode.GROUP_JOIN_NOT_ALLOWED)
+        }
+
+        // 3. 이미 멤버인지 확인
+        if (groupMemberRepository.findByGroupIdAndUserId(group.id, userId) != null) {
+            throw CustomException(ErrorCode.ALREADY_GROUP_MEMBER)
+        }
+
+        // 4. 사용자 존재 확인
+        userRepository.findByIdAndDeletedAtIsNull(userId)
+            ?: throw CustomException(ErrorCode.USER_NOT_FOUND)
+
+        // 5. 멤버로 추가
+        val member = groupMemberRepository.save(
+            GroupMember(
+                groupId = group.id,
+                userId = userId,
+                role = GroupMemberRole.MEMBER,
+            ),
+        )
+
+        return JoinGroupResponse(
+            groupId = group.id,
+            userId = userId,
+            role = member.role.name,
+            message = "그룹에 참여했습니다. 참여 금액을 설정해주세요.",
+        )
+    }
+
+    @Transactional
+    fun joinGroup(groupId: Long, userId: Long): JoinGroupResponse {
+        // 1. 그룹 조회
+        val group = groupRepository.findById(groupId).orElseThrow {
+            CustomException(ErrorCode.GROUP_NOT_FOUND)
+        }
+
+        // 2. 그룹 상태 확인 (CREATED 또는 FUNDING 상태만 참여 가능)
+        if (group.status != GroupStatus.CREATED && group.status != GroupStatus.FUNDING) {
+            throw CustomException(ErrorCode.GROUP_JOIN_NOT_ALLOWED)
+        }
+
+        // 3. 이미 멤버인지 확인
+        val existingMember = groupMemberRepository.findByGroupIdAndUserId(groupId, userId)
+        if (existingMember != null) {
+            throw CustomException(ErrorCode.ALREADY_GROUP_MEMBER)
+        }
+
+        // 4. 사용자 존재 확인
+        userRepository.findByIdAndDeletedAtIsNull(userId)
+            ?: throw CustomException(ErrorCode.USER_NOT_FOUND)
+
+        // 5. 멤버로 추가
+        val member = groupMemberRepository.save(
+            GroupMember(
+                groupId = groupId,
+                userId = userId,
+                role = GroupMemberRole.MEMBER,
+            ),
+        )
+
+        return JoinGroupResponse(
+            groupId = groupId,
+            userId = userId,
+            role = member.role.name,
+            message = "그룹에 참여했습니다. 참여 금액을 설정해주세요.",
+        )
+    }
+
+    private fun buildGroupPreview(group: Group, userId: Long): GroupPreviewResponse {
+        val product = group.productId?.let { productRepository.findById(it).orElse(null) }
+        val leaderUser = userRepository.findByIdAndDeletedAtIsNull(group.leaderId)
+            ?: throw CustomException(ErrorCode.USER_NOT_FOUND)
+        val memberCount = groupMemberRepository.findAllByGroupId(group.id).size
+        val fundingPercentage = if (group.totalAmount > 0) {
+            (group.fundedAmount.toDouble() / group.totalAmount.toDouble() * 100).let {
+                Math.round(it * 10) / 10.0
+            }
+        } else 0.0
+
+        return GroupPreviewResponse(
+            id = group.id,
+            name = group.name,
+            status = group.status.name,
+            product = product?.let {
+                GroupPreviewResponse.ProductInfo(
+                    id = it.id,
+                    name = it.name,
+                    price = it.price,
+                    imageUrl = it.imageUrl,
+                )
+            },
+            leader = GroupPreviewResponse.LeaderInfo(
+                id = leaderUser.id,
+                nickname = leaderUser.nickname,
+            ),
+            memberCount = memberCount,
+            targetAmount = group.targetAmount,
+            feeAmount = group.feeAmount,
+            totalAmount = group.totalAmount,
+            fundedAmount = group.fundedAmount,
+            fundingPercentage = fundingPercentage,
+            deadline = group.deadline,
+            inviteCode = group.inviteCode,
+            inviteLink = "$inviteLinkBaseUrl/${group.inviteLinkToken}",
         )
     }
 
